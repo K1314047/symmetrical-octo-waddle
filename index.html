@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>空投日历时间线</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            color: #000;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e0e0e0;
+        }
+        
+        .timeline-item {
+            position: relative;
+            margin-bottom: 40px;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeInUp 0.6s ease forwards;
+        }
+        
+        .timeline-item:nth-child(1) { animation-delay: 0.1s; }
+        .timeline-item:nth-child(2) { animation-delay: 0.2s; }
+        .timeline-item:nth-child(3) { animation-delay: 0.3s; }
+        .timeline-item:nth-child(4) { animation-delay: 0.4s; }
+        .timeline-item:nth-child(5) { animation-delay: 0.5s; }
+        
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -37px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #000;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #000;
+            z-index: 1;
+        }
+        
+        .date {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .date::before {
+            content: "📅";
+            margin-right: 8px;
+        }
+        
+        .content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .content:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        .content h2 {
+            font-size: 1.2rem;
+            color: #000;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .content h3 {
+            font-size: 1rem;
+            color: #000;
+            margin: 20px 0 10px 0;
+            font-weight: bold;
+        }
+        
+        .content p {
+            margin-bottom: 10px;
+            color: #000;
+        }
+        
+        .error {
+            background: #ffe6e6;
+            border-left: 4px solid #ff4444;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 60px;
+            color: #666;
+            font-size: 0.9rem;
+            padding: 20px 0;
+            border-top: 1px solid #eee;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 15px;
+            }
+            
+            h1 {
+                font-size: 1.6rem;
+            }
+            
+            .timeline {
+                padding-left: 20px;
+            }
+            
+            .timeline::before {
+                left: 10px;
+            }
+            
+            .timeline-item::before {
+                left: -27px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>空投日历</h1>
+            <div class="subtitle">每日空投信息更新</div>
+        </header>
+        
+        <div id="loading" class="loading">
+            正在加载空投日历文档...
+        </div>
+        
+        <div id="timeline" class="timeline" style="display: none;">
+            <!-- 所有Markdown内容将在这里显示 -->
+        </div>
+        
+        <div id="error" class="error" style="display: none;">
+            <!-- 错误信息将在这里显示 -->
+        </div>
+        
+        <footer>
+            &copy; 2025 空投日历 | 自动加载每日更新
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const timeline = document.getElementById('timeline');
+            const loading = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            
+            // 配置marked选项
+            marked.setOptions({
+                breaks: true,
+                gfm: true
+            });
+            
+            // 自动扫描markdown文件夹
+            async function scanMarkdownFiles() {
+                const files = [];
+                
+                // 生成最近7天的文件名（正确的格式：2025-11-18.md）
+                const today = new Date();
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(today.getDate() - i);
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    
+                    // 正确的文件名格式：2025-11-18.md
+                    const fileName = `${year}-${month}-${day}.md`;
+                    files.push({
+                        name: fileName,
+                        path: `markdown/${fileName}`,
+                        date: `${year}年${month}月${day}日`
+                    });
+                }
+                
+                return files;
+            }
+            
+            // 加载所有Markdown文件
+            async function loadAllMarkdownFiles() {
+                try {
+                    const markdownFiles = await scanMarkdownFiles();
+                    let loadedCount = 0;
+                    const totalCount = markdownFiles.length;
+                    
+                    if (totalCount === 0) {
+                        loading.innerHTML = '未找到Markdown文件<br>请确保文件在markdown文件夹中，命名格式为: YYYY-MM-DD.md';
+                        return;
+                    }
+                    
+                    // 更新加载状态
+                    loading.textContent = `正在加载空投日历 (0/${totalCount})...`;
+                    
+                    // 按日期排序（新的在前）
+                    const sortedFiles = [...markdownFiles].sort((a, b) => 
+                        b.name.localeCompare(a.name)
+                    );
+                    
+                    let hasSuccess = false;
+                    
+                    for (const file of sortedFiles) {
+                        try {
+                            const response = await fetch(file.path);
+                            if (response.ok) {
+                                const markdownText = await response.text();
+                                if (markdownText.trim()) {
+                                    await displayMarkdown(markdownText, file.date);
+                                    hasSuccess = true;
+                                }
+                            }
+                        } catch (error) {
+                            console.log(`文件不存在或加载失败: ${file.name}`);
+                        }
+                        
+                        loadedCount++;
+                        loading.textContent = `正在加载空投日历 (${loadedCount}/${totalCount})...`;
+                        
+                        // 添加小延迟
+                        await new Promise(resolve => setTimeout(resolve, 50));
+                    }
+                    
+                    // 隐藏加载提示，显示时间线
+                    loading.style.display = 'none';
+                    
+                    if (hasSuccess) {
+                        timeline.style.display = 'block';
+                    } else {
+                        errorDiv.style.display = 'block';
+                        errorDiv.innerHTML = `
+                            <h2>加载失败</h2>
+                            <p>无法加载任何Markdown文件。请检查：</p>
+                            <ol>
+                                <li>文件是否放在 <strong>markdown</strong> 文件夹中？</li>
+                                <li>文件名格式是否为 <strong>YYYY-MM-DD.md</strong>？</li>
+                                <li>是否使用了本地服务器？<code>python -m http.server 8000</code></li>
+                                <li>当前文件结构应该是：
+                                    <pre>
+项目文件夹/
+├── index.html
+└── markdown/
+    ├── 2025-11-18.md
+    ├── 2025-11-19.md
+    └── 2025-11-20.md
+                                    </pre>
+                                </li>
+                            </ol>
+                        `;
+                    }
+                    
+                } catch (error) {
+                    console.error('扫描文件失败:', error);
+                    loading.style.display = 'none';
+                    errorDiv.style.display = 'block';
+                    errorDiv.innerHTML = `<p>扫描文件失败: ${error.message}</p>`;
+                }
+            }
+            
+            // 显示Markdown内容
+            async function displayMarkdown(markdownText, date) {
+                return new Promise((resolve) => {
+                    // 将Markdown转换为HTML
+                    const htmlContent = marked.parse(markdownText);
+                    
+                    // 创建时间线项目
+                    const timelineItem = document.createElement('div');
+                    timelineItem.className = 'timeline-item';
+                    
+                    // 添加日期
+                    const dateDiv = document.createElement('div');
+                    dateDiv.className = 'date';
+                    dateDiv.textContent = date;
+                    timelineItem.appendChild(dateDiv);
+                    
+                    // 添加内容
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'content';
+                    contentDiv.innerHTML = htmlContent;
+                    timelineItem.appendChild(contentDiv);
+                    
+                    // 添加到时间线
+                    timeline.appendChild(timelineItem);
+                    
+                    resolve();
+                });
+            }
+            
+            // 开始加载所有文件
+            loadAllMarkdownFiles();
+        });
+    </script>
+</body>
+</html>
